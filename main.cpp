@@ -1,76 +1,19 @@
 #include "mbed.h"
 
-#include "CAN.h"
-#include "NoMutexCAN.h"
-
-#include "constants.h"
-
-NoMutexCAN can1(CAN1_RD, CAN1_TD); // CAN (PinName rd, PinName td);
-NoMutexCAN can2(CAN2_RD, CAN2_TD); // CAN (PinName rd, PinName td);
-
-char counter = 0;
-
-Ticker ticker;
-
-unsigned int filterMask = 0x00000001;
-unsigned int filter1Id = 0x00000001;
-unsigned int filter2Id = 0x00000000;
-
-int sendAll(CAN *can) {
-  int returnVal = 1;
-  for (int i = 0; i < 8; i++) {
-    int result = (*can).write(CANMessage(i, &counter, 1));
-    printf("Message sent: %d\n", counter);
-    returnVal &= result;
-  }
-
-  return returnVal;
-}
-
-void sendCANTask() {
-  sendAll(&can1);
-  ThisThread::sleep_for(10ms);
-
-  sendAll(&can2);
-  ThisThread::sleep_for(10ms);
-}
-
-void readCAN1() {
-  CANMessage msg;
-  if (can1.read(msg)) {
-    printf("Message received: %d\n", msg.data[0]);
-  }
-}
-
-void readCAN2() {
-  CANMessage msg;
-  if (can2.read(msg)) {
-    printf("Message received: %d\n", msg.data[0]);
-  }
-}
-
-void setUpFilter() {
-  can1.filter(filter1Id, filterMask, CANAny, 1);
-  can2.filter(filter2Id, filterMask, CANAny, 14);
-}
+CAN can1(PB_8, PB_9);
+EventQueue queue(32 * EVENTS_EVENT_SIZE);
+Thread t;
 
 int main() {
-  printf("init start\n");
-  can1.frequency(1000000);
-  can2.frequency(1000000);
-  printf("can freq fin\n");
+  printf("F446\n");
+  can1.frequency(500E3);
+  t.start(callback(&queue, &EventQueue::dispatch_forever));
 
-  setUpFilter();
-  printf("can filter fin\n");
-
-  ticker.attach(&sendCANTask, 5000ms);
-  printf("ticker attach fin\n");
-  printf("init fin\n");
-
+  CANMessage msg;
   while (1) {
-    readCAN1();
-    ThisThread::sleep_for(10ms);
-    readCAN2();
-    ThisThread::sleep_for(10ms);
+    if (can1.read(msg)) {
+      printf("Msg ID: %d, data: %d\n", msg.id, msg.data[0]);
+    }
+    thread_sleep_for(100);
   }
 }
