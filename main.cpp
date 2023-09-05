@@ -1,5 +1,5 @@
-#include "CAN.h"
 #include "mbed.h"
+#include "CAN.h"
 
 #include "constants.h"
 
@@ -10,8 +10,10 @@ char counter = 0;
 
 Ticker ticker;
 Thread canReadThread;
+Thread canWriteThread;
 
-EventQueue queue(32 * EVENTS_EVENT_SIZE);
+EventQueue queueRead(32 * EVENTS_EVENT_SIZE);
+EventQueue queueWrite(32 * EVENTS_EVENT_SIZE);
 
 unsigned int filterMask = 0x00000001;
 unsigned int filter1Id = 0x00000001;
@@ -22,8 +24,8 @@ int sendAll() {
   for (int i = 1; i <= 8; i++) {
     int result = can1.write(CANMessage(i, &counter, 1));
     printf("%p Message sent: %d\n", &can1, counter++);
-    if(result != 1) {
-        printf("Failed to send data.");
+    if (result != 1) {
+      printf("Failed to send data.\n");
     }
     returnVal &= result;
   }
@@ -58,8 +60,11 @@ void setUpFilter() {
 }
 
 void can1ISR() {
-  printf("ISR CAN1\n");
-  queue.call(readCAN1);
+  queueRead.call(readCAN1);
+}
+
+void can1Write() {
+  queueWrite.call(sendAll);
 }
 
 // void can2ISR() {
@@ -69,7 +74,7 @@ void can1ISR() {
 
 int main() {
   printf("init start\n");
-  can1.frequency(1 * 1000 * 1000);
+  can1.frequency(5 * 100 * 1000);
   can1.mode(CAN::Normal);
   //   can2.frequency(1000000);
   //   can2.mode(CAN::Normal);
@@ -79,11 +84,9 @@ int main() {
 
   can1.attach(can1ISR, CAN::RxIrq);
   //   can2.attach(can2ISR, CAN::RxIrq);
-  canReadThread.start(callback(&queue, &EventQueue::dispatch_forever));
+  canReadThread.start(callback(&queueRead, &EventQueue::dispatch_forever));
   printf("can attach fin\n");
 
-  while (1) {
-    sendCANTask();
-    ThisThread::sleep_for(5s);
-  }
+  canWriteThread.start(callback(&queueWrite, &EventQueue::dispatch_forever));
+  ticker.attach(can1Write, 1s);
 }
