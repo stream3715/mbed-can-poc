@@ -29,7 +29,7 @@ void readCAN1() {
 
 void setUpFilter() {
   can1.filter(0x001, filterMask, CANStandard, 0);
-  can1.filter(0x003, filterMask, CANStandard, 0);
+  can1.filter(0x003, filterMask, CANStandard, 1);
   //   can2.filter(filter2Id, filterMask, CANStandard, 14);
 }
 
